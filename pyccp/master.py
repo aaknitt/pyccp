@@ -41,12 +41,14 @@ class Master:
         self.is_extended_id = is_extended_id
         self._transport = transport
         # Receive both DTOs and CROs, the latter in case local echo is enabled.
+        
         self._transport.set_filters(
             [
                 {"can_id": dto_id, "can_mask": 0x1FFFFFFF, "extended": self.is_extended_id},
                 {"can_id": cro_id, "can_mask": 0x1FFFFFFF, "extended": self.is_extended_id},
             ]
         )
+        
         self._queue = MessageSorter(dto_id, cro_id)
         self._notifier = can.Notifier(self._transport, [self._queue])
         self.ctr = 0
@@ -65,7 +67,7 @@ class Master:
             "Sent CRO CTR{}:  %s  %s".format(self.ctr), command_code.name, kwargs_str
         )
 
-    def _receive(self) -> bytearray:
+    def _receive(self,timeout=1.5) -> bytearray:
         """Check that the response is what we expect it to be.
 
         Raises
@@ -83,7 +85,7 @@ class Master:
         """
         
         try:
-            crm = self._queue.get_command_return_message()
+            crm = self._queue.get_command_return_message(timeout=timeout)
         except Empty:
             raise CCPError("No reply from slave")
         if crm.ctr == self.ctr:
@@ -400,7 +402,7 @@ class Master:
 
     def clear_memory(self,size: int):
         self._send(CommandCodes.CLEAR_MEMORY,size=size)
-        self._receive()
+        self._receive(timeout=10.0)
 
     def program(self, size: int, data: int) -> tuple:
         """Program data from master to slave.
